@@ -373,14 +373,37 @@
                         logging: false,
                     });
 
-                    const image = canvas.toDataURL("image/png");
+                    const blob = await new Promise((resolve) =>
+                        canvas.toBlob(resolve, "image/png"),
+                    );
 
-                    const link = document.createElement("a");
-                    link.download = `Blast-Member-Card.png`;
-                    link.href = image;
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
+                    if (!blob) throw new Error("Неуспешно генериране на файл");
+
+                    const file = new File([blob], "Blast-Member-Card.png", {
+                        type: "image/png",
+                    });
+
+                    // iOS Safari не уважава download атрибута; споделяне с файл работи по-надеждно
+                    const canShareFile =
+                        navigator.canShare &&
+                        navigator.canShare({ files: [file] });
+
+                    if (canShareFile) {
+                        await navigator.share({
+                            files: [file],
+                            title: "Blast Gaming Card",
+                            text: "Запази картата в Галерията",
+                        });
+                    } else {
+                        const url = URL.createObjectURL(blob);
+                        const newTab = window.open(url, "_blank");
+
+                        // Ако popup е блокиран, пренасочваме текущия таб
+                        if (!newTab) window.location.href = url;
+
+                        // Дава време на потребителя да запази изображението (long press → Save Image)
+                        setTimeout(() => URL.revokeObjectURL(url), 60000);
+                    }
 
                     statusMsg.classList.remove("hidden");
                     setTimeout(() => {
@@ -396,7 +419,9 @@
                     }, 2500);
                 } catch (error) {
                     console.error("Грешка:", error);
-                    alert("Моля, направете скрийншот.");
+                    alert(
+                        "Ако автоматичното сваляне не тръгне, натисни и задръж върху картата и избери Save/Download Image.",
+                    );
                     saveBtn.disabled = false;
                     saveBtn.style.opacity = "1";
                 }
